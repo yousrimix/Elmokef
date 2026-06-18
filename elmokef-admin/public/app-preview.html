@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الموقف - معاينة التطبيق</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 { color: #1a73e8; margin: 10px 0; font-size: 22px; }
+    .phone-frame {
+      width: 375px;
+      height: 812px;
+      background: #fff;
+      border-radius: 40px;
+      border: 4px solid #333;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+    .screen {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Status Bar */
+    .status-bar {
+      background: #1a73e8;
+      color: white;
+      padding: 12px 20px 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    /* Header */
+    .header {
+      background: #1a73e8;
+      color: white;
+      padding: 10px 16px 16px;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .header-top h2 { font-size: 18px; }
+    .header-icons { display: flex; gap: 16px; }
+    .header-icons span { font-size: 20px; cursor: pointer; }
+    .search-bar {
+      background: rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.8);
+    }
+    .search-bar span { font-size: 14px; }
+
+    /* Categories */
+    .categories {
+      padding: 16px;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      border-bottom: 1px solid #eee;
+    }
+    .category-item {
+      min-width: 72px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .category-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 6px;
+      font-size: 24px;
+    }
+    .category-item span { font-size: 11px; color: #555; }
+
+    /* Content */
+    .content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #333;
+    }
+    .card {
+      background: #f8f9fa;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .card:hover { transform: translateY(-2px); }
+    .card-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .card-name { font-weight: 600; font-size: 14px; color: #333; }
+    .card-rating { color: #f59e0b; font-size: 13px; }
+    .card-service { font-size: 12px; color: #666; margin-bottom: 6px; }
+    .card-footer { display: flex; justify-content: space-between; font-size: 11px; color: #999; }
+    .card-img {
+      width: 100%;
+      height: 120px;
+      background: linear-gradient(135deg, #1a73e8, #4285f4);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0 16px;
+      border-top: 1px solid #eee;
+      background: white;
+    }
+    .nav-item {
+      text-align: center;
+      font-size: 10px;
+      color: #999;
+      cursor: pointer;
+    }
+    .nav-item.active { color: #1a73e8; }
+    .nav-item span { display: block; font-size: 20px; margin-bottom: 2px; }
+
+    /* Page indicator */
+    .page-indicator {
+      display: flex;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .page-indicator button {
+      padding: 8px 20px;
+      border: 2px solid #1a73e8;
+      border-radius: 20px;
+      background: white;
+      color: #1a73e8;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .page-indicator button.active {
+      background: #1a73e8;
+      color: white;
+    }
+    .page-indicator button:hover { opacity: 0.8; }
+
+    /* Screen content */
+    .screen-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Artisan Profile */
+    .profile-header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    .profile-avatar {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      margin: 0 auto 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+    .profile-stats {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 12px;
+    }
+    .stat { text-align: center; }
+    .stat-num { font-weight: bold; font-size: 18px; }
+    .stat-label { font-size: 11px; opacity: 0.8; }
+
+    /* Client Orders */
+    .order-card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .order-status {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+    }
+    .status-pending { background: #fef3c7; color: #d97706; }
+    .status-progress { background: #dbeafe; color: #1d4ed8; }
+    .status-completed { background: #d1fae5; color: #059669; }
+
+    .mockup-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mockup-nav a {
+      color: #1a73e8;
+      text-decoration: none;
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 16px;
+      background: #e8f0fe;
+    }
+
+    .note {
+      color: #666;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .colors { display: flex; gap: 16px; margin: 20px 0; }
+    .color-swatch {
+      width: 40px; height: 40px;
+      border-radius: 8px;
+      border: 2px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>📱 الموقف — معاينة التطبيق</h1>
+  <p style="color:#666;margin-bottom:12px;font-size:13px">اختر الشاشة للتنقل بين واجهات التطبيق</p>
+  
+  <div class="page-indicator">
+    <button class="active" onclick="showPage('home')">🏠 الرئيسية</button>
+    <button onclick="showPage('artisan')">👨‍🔧 حرفي</button>
+    <button onclick="showPage('orders')">📋 طلباتي</button>
+    <button onclick="showPage('client')">👤 حسابي</button>
+  </div>
+
+  <div class="phone-frame">
+    <div class="screen" id="phone-screen">
+      <!-- Home Page -->
+      <div id="page-home" class="screen-content">
+        <div class="status-bar">
+          <span>09:41</span>
+          <span>📶 🔋</span>
+        </div>
+        <div class="header">
+          <div class="header-top">
+            <h2>مرحباً أحمد 👋</h2>
+            <div class="header-icons">
+              <span>🔔</span>
+              <span>☰</span>
+            </div>
+          </div>
+          <div class="search-bar">
+            <span>🔍</span>
+            <span>ابحث عن خدمة أو حرفي...</span>
+          </div>
+        </div>
+        <div class="categories">
+          <div class="category-item">
+            <div class="category-icon" style="background:#fee2e2;">🔧</div>
+            <span>سباكة</span>
+          </div>
+          <div class="category-item">
+            <div class="category-icon" style="background:#dbeafe;">⚡</div>
+            <span>كهرباء</span>
+          </div>
+          <div class="category-item">
+            <div class="category-icon" style="background:#d1fae5;">🎨</div>
+            <span>دهان</span>
+          </div>
+          <div class="category-item">
+            <div class="category-icon" style="background:#fef3c7;">🪚</div>
+            <span>نجارة</span>
+          </div>
+          <div class="category-item">
+            <div class="category-icon" style="background:#f3e8ff;">🧱</div>
+            <span>بناء</span>
+          </div>
+        </div>
+        <div class="content">
+          <div class="section-title">أفضل الحرفيين</div>
+          <div class="card">
+            <div class="card-img">🛠️</div>
+            <div class="card-header">
+              <span class="card-name">أحمد العلوي</span>
+              <span class="card-rating">⭐ 4.8</span>
+            </div>
+            <div class="card-service">🔧 سباكة عامة • خبرة 15 سنة</div>
+            <div class="card-footer">
+              <span>📍 الدار البيضاء</span>
+              <span>💰 250 د.م/ساعة</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-img">⚡</div>
+            <div class="card-header">
+              <span class="card-name">محمد الصقلي</span>
+              <span class="card-rating">⭐ 4.6</span>
+            </div>
+            <div class="card-service">⚡ كهرباء منزلية وصناعية</div>
+            <div class="card-footer">
+              <span>📍 الرباط</span>
+              <span>💰 300 د.م/ساعة</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-img">🎨</div>
+            <div class="card-header">
+              <span class="card-name">فاطمة بنعلي</span>
+              <span class="card-rating">⭐ 4.9</span>
+            </div>
+            <div class="card-service">🎨 دهان وديكور داخلي</div>
+            <div class="card-footer">
+              <span>📍 مراكش</span>
+              <span>💰 200 د.م/ساعة</span>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active">
+            <span>🏠</span> الرئيسية
+          </div>
+          <div class="nav-item">
+            <span>🔍</span> بحث
+          </div>
+          <div class="nav-item">
+            <span>📋</span> طلباتي
+          </div>
+          <div class="nav-item">
+            <span>👤</span> حسابي
+          </div>
+        </div>
+      </div>
+
+      <!-- Artisan Profile -->
+      <div id="page-artisan" class="screen-content" style="display:none;">
+        <div class="status-bar" style="background:#0d47a1;">
+          <span>09:41</span>
+          <span>📶 🔋</span>
+        </div>
+        <div class="profile-header">
+          <div class="profile-avatar">👨‍🔧</div>
+          <h3>أحمد العلوي</h3>
+          <p style="opacity:0.9;font-size:13px">🔧 سباك عام • الدار البيضاء</p>
+          <p style="font-size:13px;margin-top:4px">⭐ 4.8 (127 تقييم)</p>
+          <div class="profile-stats">
+            <div class="stat"><div class="stat-num">15</div><div class="stat-label">سنوات خبرة</div></div>
+            <div class="stat"><div class="stat-num">234</div><div class="stat-label">مشروع مكتمل</div></div>
+            <div class="stat"><div class="stat-num">98%</div><div class="stat-label">رضا العملاء</div></div>
+          </div>
+        </div>
+        <div class="content">
+          <div class="section-title">الخدمات</div>
+          <div class="card" style="padding:10px 14px;">🔧 تركيب وصيانة السباكة <span style="float:left;color:#1a73e8;">250 د.م</span></div>
+          <div class="card" style="padding:10px 14px;">🚿 تركيب سخانات ومضخات <span style="float:left;color:#1a73e8;">400 د.م</span></div>
+          <div class="card" style="padding:10px 14px;">🛠️ إصلاح تسربات المياه <span style="float:left;color:#1a73e8;">200 د.م</span></div>
+          <button style="width:100%;padding:14px;background:#1a73e8;color:white;border:none;border-radius:12px;font-size:16px;cursor:pointer;margin-top:8px;">📩 طلب الخدمة</button>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><span>🏠</span> الرئيسية</div>
+          <div class="nav-item"><span>🔍</span> بحث</div>
+          <div class="nav-item"><span>📋</span> طلباتي</div>
+          <div class="nav-item"><span>👤</span> حسابي</div>
+        </div>
+      </div>
+
+      <!-- Orders -->
+      <div id="page-orders" class="screen-content" style="display:none;">
+        <div class="status-bar"><span>09:41</span><span>📶 🔋</span></div>
+        <div class="header"><div class="header-top"><h2>📋 طلباتي</h2></div></div>
+        <div class="content">
+          <div class="order-card">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <b>تركيب سخان ماء</b>
+              <span class="order-status status-progress">قيد التنفيذ</span>
+            </div>
+            <p style="font-size:12px;color:#666;">أحمد العلوي • 25 يونيو 2026</p>
+            <p style="font-size:12px;color:#1a73e8;margin-top:6px;">💰 400 د.م</p>
+          </div>
+          <div class="order-card">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <b>إصلاح تسريب ماء</b>
+              <span class="order-status status-pending">قيد الانتظار</span>
+            </div>
+            <p style="font-size:12px;color:#666;">محمد الصقلي • 22 يونيو 2026</p>
+            <p style="font-size:12px;color:#1a73e8;margin-top:6px;">💰 200 د.م</p>
+          </div>
+          <div class="order-card">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <b>دهان غرفة المعيشة</b>
+              <span class="order-status status-completed">مكتمل</span>
+            </div>
+            <p style="font-size:12px;color:#666;">فاطمة بنعلي • 15 يونيو 2026</p>
+            <p style="font-size:12px;color:#1a73e8;margin-top:6px;">💰 800 د.م</p>
+            <p style="font-size:11px;color:#f59e0b;margin-top:4px;">⭐ ⭐ ⭐ ⭐ ⭐ قيّم الخدمة</p>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><span>🏠</span> الرئيسية</div>
+          <div class="nav-item"><span>🔍</span> بحث</div>
+          <div class="nav-item active"><span>📋</span> طلباتي</div>
+          <div class="nav-item"><span>👤</span> حسابي</div>
+        </div>
+      </div>
+
+      <!-- Client Profile -->
+      <div id="page-client" class="screen-content" style="display:none;">
+        <div class="status-bar"><span>09:41</span><span>📶 🔋</span></div>
+        <div class="profile-header" style="background:linear-gradient(135deg,#0d47a1,#1a73e8);">
+          <div class="profile-avatar">👤</div>
+          <h3>يسري</h3>
+          <p style="opacity:0.9;font-size:13px">📧 yousri@email.com</p>
+        </div>
+        <div class="content">
+          <div class="card" style="padding:12px;">👤 معلوماتي الشخصية</div>
+          <div class="card" style="padding:12px;">📍 عناويني</div>
+          <div class="card" style="padding:12px;">💳 طرق الدفع</div>
+          <div class="card" style="padding:12px;">⭐ تقييماتي</div>
+          <div class="card" style="padding:12px;">🔔 الإشعارات</div>
+          <div class="card" style="padding:12px;">⚙️ الإعدادات</div>
+          <div class="card" style="padding:12px;color:#ef4444;">🚪 تسجيل الخروج</div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><span>🏠</span> الرئيسية</div>
+          <div class="nav-item"><span>🔍</span> بحث</div>
+          <div class="nav-item"><span>📋</span> طلباتي</div>
+          <div class="nav-item active"><span>👤</span> حسابي</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;text-align:center;max-width:500px;">
+    <p class="note">⚠️ هذه معاينة بصرية للـ UI — التطبيق الكامل يتطلب Flutter على جهاز فعلي.
+    لكن الشكل النهائي سيكون مشابهاً جداً إن شاء الله.</p>
+    
+    <div style="margin-top:16px;padding:16px;background:#e8f0fe;border-radius:12px;text-align:right;">
+      <p style="font-weight:bold;color:#1a73e8;">🎨 ألوان الهوية</p>
+      <div class="colors">
+        <div style="text-align:center;"><div class="color-swatch" style="background:#1a73e8;"></div><span style="font-size:11px;">Primary</span></div>
+        <div style="text-align:center;"><div class="color-swatch" style="background:#0d47a1;"></div><span style="font-size:11px;">Dark</span></div>
+        <div style="text-align:center;"><div class="color-swatch" style="background:#4285f4;"></div><span style="font-size:11px;">Accent</span></div>
+        <div style="text-align:center;"><div class="color-swatch" style="background:#1b5e20;"></div><span style="font-size:11px;">Success</span></div>
+        <div style="text-align:center;"><div class="color-swatch" style="background:#c62828;"></div><span style="font-size:11px;">Danger</span></div>
+      </div>
+    </div>
+
+    <p class="note">
+      <b>ما يشتغلش على Web:</b> Firebase, Google Maps, الخدمات البنكية (CMI), التصوير, الإشعارات — 
+      هذه تحتاج جهاز أندرويد/ios حقيقي.
+    </p>
+  </div>
+
+  <script>
+    function showPage(page) {
+      document.querySelectorAll('.screen-content').forEach(el => el.style.display = 'none');
+      document.getElementById('page-' + page).style.display = 'flex';
+      document.querySelectorAll('.page-indicator button').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

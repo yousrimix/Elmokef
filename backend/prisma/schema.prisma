@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CLIENT
+  ARTISAN
+  ADMIN
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  email     String?  @unique
+  password  String?
+  role      Role     @default(CLIENT)
+  image     String?
+  location  Unsupported("geography(Point, 4326)")?
+  fcmToken  String?
+  isActive  Boolean  @default(true)
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  artisanProfile    ArtisanProfile?
+  clientProfile     ClientProfile?
+  reviewsGiven      Review[]      @relation("ReviewClient")
+  favorites         Favorite[]
+  ordersAsClient    Order[]       @relation("ClientOrders")
+  ordersAsArtisan   Order[]       @relation("ArtisanOrders")
+  sentComplaints    Complaint[]   @relation("Complainant")
+  receivedComplaints Complaint[]  @relation("ComplaintTarget")
+  subscriptions     Subscription[]
+  payments          Payment[]
+  auditLogs         AuditLog[]
+  documents         ArtisanDocument[]
+  devices           Device[]
+  notifications     Notification[]
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String
+  purpose   String   @default("LOGIN")
+  isUsed    Boolean  @default(false) @map("is_used")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone, code, purpose])
+  @@map("otp_codes")
+}
+
+model ClientProfile {
+  id        String @id @default(uuid())
+  userId    String @unique @map("user_id")
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("client_profiles")
+}
+
+model ArtisanProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio             String?
+  coverImage      String?  @map("cover_image")
+  ratingAvg       Float    @default(0) @map("rating_avg")
+  avgPrice        Float    @default(0) @map("avg_price")
+  responseTimeAvg Int?     @map("response_time_avg")
+  totalRatings    Int      @default(0) @map("total_ratings")
+  totalOrders     Int      @default(0) @map("total_orders")
+  rankingScore    Float    @default(0) @map("ranking_score")
+  isVerified      Boolean  @default(false) @map("is_verified")
+  verifiedAt      DateTime? @map("verified_at")
+  verifiedBy      String?  @map("verified_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  services    ArtisanService[]
+  portfolio   ArtisanPortfolio[]
+    reviews     Review[]
+  favorites   Favorite[]
+
+  @@map("artisan_profiles")
+}
+
+model Service {
+  id        String   @id @default(uuid())
+  nameAr    String   @map("name_ar")
+  nameFr    String   @map("name_fr")
+  icon      String?
+  parentId  String?  @map("parent_id")
+  parent    Service?  @relation("ServiceHierarchy", fields: [parentId], references: [id])
+  children  Service[] @relation("ServiceHierarchy")
+  orderIndex Int     @default(0) @map("order_index")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  artisanServices ArtisanService[]
+  reviews         Review[]
+  orders          Order[]
+
+  @@map("services")
+}
+
+model ArtisanService {
+  id         String   @id @default(uuid())
+  artisanId  String   @map("artisan_id")
+  artisan    ArtisanProfile @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  serviceId  String   @map("service_id")
+  service    Service  @relation(fields: [serviceId], references: [id])
+  price      Float
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([artisanId, serviceId])
+  @@map("artisan_services")
+}
+
+model ArtisanPortfolio {
+  id          String @id @default(uuid())
+  artisanId   String @map("artisan_id")
+  artisan     ArtisanProfile @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  imageUrl     String  @map("image_url")
+  thumbnailUrl String? @map("thumbnail_url")
+  description  String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("artisan_portfolio")
+}
+
+model ArtisanDocument {
+  id         String         @id @default(uuid())
+  userId     String         @map("user_id")
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  url        String
+  status     DocumentStatus @default(PENDING)
+  verifiedBy String?        @map("verified_by")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  @@map("artisan_documents")
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  clientId    String   @map("client_id")
+  client      User     @relation("ReviewClient", fields: [clientId], references: [id])
+  artisanId   String   @map("artisan_id")
+  artisanProfile ArtisanProfile @relation(fields: [artisanId], references: [userId])
+  serviceId   String   @map("service_id")
+  service     Service  @relation(fields: [serviceId], references: [id])
+  rating      Int
+  comment     String?
+  reply       String?
+  isApproved  Boolean  @default(false) @map("is_approved")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@unique([clientId, serviceId])
+  @@map("reviews")
+}
+
+model Favorite {
+  clientId   String @map("client_id")
+  client     User   @relation(fields: [clientId], references: [id])
+  artisanId  String @map("artisan_id")
+  artisan    ArtisanProfile @relation(fields: [artisanId], references: [userId])
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([clientId, artisanId])
+  @@map("favorites")
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  clientId       String      @map("client_id")
+  client         User        @relation("ClientOrders", fields: [clientId], references: [id])
+  artisanId      String      @map("artisan_id")
+  artisan        User        @relation("ArtisanOrders", fields: [artisanId], references: [id])
+  serviceId      String      @map("service_id")
+  service        Service     @relation(fields: [serviceId], references: [id])
+  status         OrderStatus @default(PENDING)
+  description    String?
+  location       Json?       @map("location")
+  budget         Decimal?    @map("budget") @db.Decimal(10, 2)
+  scheduledDate  DateTime?   @map("scheduled_date")
+  artisanNote    String?     @map("artisan_note")
+  declinedReason String?     @map("declined_reason")
+  totalPaid      Decimal?    @map("total_paid") @db.Decimal(10, 2)
+  paidAt         DateTime?   @map("paid_at")
+  completedAt    DateTime?   @map("completed_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
+
+  @@index([clientId])
+  @@index([artisanId])
+  @@index([serviceId])
+  @@index([status])
+  @@map("orders")
+}
+
+model Subscription {
+  id           String             @id @default(uuid())
+  artisanId    String             @unique @map("artisan_id")
+  artisan      User               @relation(fields: [artisanId], references: [id])
+  plan         SubscriptionPlan   @default(FREE)
+  startDate    DateTime           @default(now()) @map("start_date")
+  endDate      DateTime?          @map("end_date")
+  autoRenew    Boolean            @default(true) @map("auto_renew")
+  price        Float              @default(0)
+  status       SubscriptionStatus @default(ACTIVE)
+  paymentId    String?            @unique @map("payment_id")
+  payment      Payment?           @relation(fields: [paymentId], references: [id])
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  artisanId     String        @map("artisan_id")
+  artisan       User          @relation(fields: [artisanId], references: [id])
+  amount        Float
+  currency      String        @default("MAD")
+  method        String?
+  status        PaymentStatus @default(PENDING)
+  transactionId String?       @map("transaction_id")
+  receiptUrl    String?       @map("receipt_url")
+  ip            String?       @map("ip")
+  userAgent     String?       @map("user_agent")
+  metadata      Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  subscription Subscription?
+
+  @@map("payments")
+}
+
+model Complaint {
+  id          String   @id @default(uuid())
+  clientId    String   @map("client_id")
+  client      User     @relation("Complainant", fields: [clientId], references: [id])
+  artisanId   String   @map("artisan_id")
+  artisan     User     @relation("ComplaintTarget", fields: [artisanId], references: [id])
+  reason      String
+  description String?
+  imageUrl    String?  @map("image_url")
+  status      String   @default("PENDING")
+  resolution  String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  resolvedAt  DateTime? @map("resolved_at")
+
+  @@map("complaints")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String
+  platform  String   @default("unknown")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([token])
+  @@index([userId])
+  @@map("devices")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model RankingConfig {
+  id        String   @id @default("singleton")
+  weights   Json     @default("{\"rating\": 0.30, \"price\": 0.20, \"speed\": 0.10, \"distance\": 0.40}")
+  boosts    Json     @default("{\"FREE\": 1.0, \"PRO\": 1.2, \"PREMIUM\": 1.5}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ranking_config")
+}

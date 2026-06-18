@@ -1,0 +1,254 @@
+# =============================================================================
+# Deploy — Production Deployment Pipeline
+# =============================================================================
+# Triggers: main push touching backend/ or infra/
+# Flow:     Build Docker → Push to ghcr.io → SSH Deploy to production server
+#
+# Requires GitHub Secrets:
+#   DEPLOY_SSH_KEY       — Private SSH key for deploy user
+#   DEPLOY_HOST          — Production server IP/hostname
+#   DEPLOY_USER          — SSH username (e.g. "deploy")
+#   GHCR_PAT             — GitHub Container Registry PAT with write:packages
+#   REDIS_PASSWORD       — Redis production password
+#   CMI_STORE_KEY        — CMI store key (base64)
+#   CMI_MERCHANT_ID      — CMI merchant ID (base64)
+#   JWT_SECRET           — JWT signing secret (base64)
+#   JWT_REFRESH_SECRET   — JWT refresh secret (base64)
+#   DB_PASSWORD          — PostgreSQL password (base64)
+#   DOCUMENTS_ENCRYPTION_KEY — Document encryption key (base64)
+#   SLACK_WEBHOOK        — (Optional) Slack notification webhook
+# =============================================================================
+
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'infra/docker/**'
+      - '.github/workflows/deploy.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/elmokef-ma/backend
+  TAG: ${{ github.sha }}
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Job 1: Build & Push Backend Docker Image
+  # --------------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push Backend Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata (labels, tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,suffix=,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./infra/docker/Dockerfile.backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+
+  # --------------------------------------------------------------------------
+  # Job 2: Deploy via SSH
+  # --------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: success()
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy backend on production server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "
+            set -e
+
+            echo '🚀 Deploying elmokef-backend...'
+
+            cd /opt/elmokef
+
+            # Pull the new image
+            echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml pull backend
+
+            # Recreate backend container with new image
+            docker compose -f docker-compose.prod.yml up -d backend --no-deps --force-recreate
+
+            # Wait for healthcheck
+            echo '⏳ Waiting for backend healthcheck...'
+            for i in \$(seq 1 30); do
+              if docker inspect --format='{{json .State.Health.Status}}' elmokef-backend-prod 2>/dev/null | grep -q healthy; then
+                echo '✅ Backend is healthy';
+                break;
+              fi;
+              echo \"   attempt \$i/30...\";
+              sleep 5;
+            done
+
+            # Clean up old images
+            docker image prune -f --filter 'until=72h'
+
+            echo '✅ Deployment complete'
+          "
+
+  # --------------------------------------------------------------------------
+  # Job 3: Deploy Admin Panel (if admin/ infra changed in same push)
+  # --------------------------------------------------------------------------
+  deploy-admin:
+    name: Deploy Admin Panel
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: success() && contains(join(github.event.commits.*.modified, ' '), 'elmokef-admin/')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: ./elmokef-admin/package-lock.json
+
+      - name: Install dependencies & build admin
+        run: |
+          cd elmokef-admin
+          npm ci
+          npm run build
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy dist/ to server and reload Nginx
+        run: |
+          # Compress for faster transfer
+          tar czf admin-dist.tar.gz -C elmokef-admin/dist .
+
+          # Copy to server
+          scp admin-dist.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
+
+          # Extract and reload Nginx
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "
+            set -e
+            sudo rm -rf /var/www/admin.elmokef.ma/*
+            sudo tar xzf /tmp/admin-dist.tar.gz -C /var/www/admin.elmokef.ma
+            rm /tmp/admin-dist.tar.gz
+            sudo docker exec elmokef-nginx-prod nginx -s reload
+            echo '✅ Admin panel deployed'
+          "
+
+  # --------------------------------------------------------------------------
+  # Job 4: Health Check (Post-deployment)
+  # --------------------------------------------------------------------------
+  health-check:
+    name: Post-Deployment Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+
+    steps:
+      - name: Wait for propagation
+        run: sleep 15
+
+      - name: Check API health endpoint
+        run: |
+          echo '🔍 Checking API health...'
+          HTTP_CODE=\$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 30 https://api.elmokef.ma/health || echo '000')
+          if [ \"\$HTTP_CODE\" = \"200\" ]; then
+            echo '✅ API health check passed (200)'
+          else
+            echo '❌ API health check failed (HTTP \$HTTP_CODE)'
+            exit 1
+          fi
+
+      - name: Check Admin panel
+        run: |
+          echo '🔍 Checking Admin panel...'
+          HTTP_CODE=\$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 --max-time 30 https://admin.elmokef.ma || echo '000')
+          if [ \"\$HTTP_CODE\" = \"200\" ] || [ \"\$HTTP_CODE\" = \"302\" ] || [ \"\$HTTP_CODE\" = \"301\" ]; then
+            echo '✅ Admin panel is accessible (HTTP \$HTTP_CODE)'
+          else
+            echo '❌ Admin panel check failed (HTTP \$HTTP_CODE)'
+            exit 1
+          fi
+
+      - name: Check deployed version
+        run: |
+          echo '✅ Deployment verification complete'
+          echo \"Version: \${{ github.sha }}\"
+          echo \"Deployed at: \$(date -u '+%Y-%m-%dT%H:%M:%SZ')\"
+
+  # --------------------------------------------------------------------------
+  # Slack notification on failure
+  # --------------------------------------------------------------------------
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: [build-and-push, deploy]
+
+    steps:
+      - name: Send Slack notification
+        if: secrets.SLACK_WEBHOOK
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "❌ *Deployment Failed*\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nActor: ${{ github.actor }}\nWorkflow: ${{ github.workflow }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }

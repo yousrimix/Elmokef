@@ -1,0 +1,29 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+.pub/
+build/
+*.dart.defines
+*.dart_tool/
+*.flutter-plugins
+*.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+.env
+
+# Dependencies
+.pub-cache/
+
+# Node
+node_modules/

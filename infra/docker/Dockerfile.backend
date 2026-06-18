@@ -1,0 +1,65 @@
+# =============================================================================
+# Backend Dockerfile — Elmokef API (NestJS)
+# =============================================================================
+# Multi-stage:
+#   Build  → Node 22 Alpine (npm ci → prisma generate → nest build)
+#   Run    → Distroless Node 22 (minimal attack surface)
+#
+# Usage (from repo root):
+#   docker build -f infra/docker/Dockerfile.backend -t ghcr.io/elmokef-ma/backend:latest ./backend
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 1: Build
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+# Copy dependency manifests first (leverage Docker layer caching)
+COPY package*.json ./
+COPY prisma/ ./prisma/
+
+# Install ALL dependencies (including devDependencies needed for build)
+RUN npm ci
+
+# Copy source code
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+COPY src/ ./src/
+COPY test/ ./test/
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build NestJS
+RUN npm run build
+
+# Prune dev dependencies — keep only production modules
+RUN npm prune --omit=dev
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2: Production Run (Google Distroless)
+# ─────────────────────────────────────────────────────────────────────────────
+FROM gcr.io/distroless/nodejs22-debian12:nonroot
+
+WORKDIR /app
+
+# Copy production artifacts from build stage
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./
+COPY --from=build /app/prisma ./prisma
+
+# Expose application port
+EXPOSE 3000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD ["node", "-e", "require('http').get('http://localhost:3000/health', r => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+
+# Run as non-root user (already nonroot in distroless)
+USER nonroot
+
+# Start the NestJS server
+CMD ["dist/main.js"]

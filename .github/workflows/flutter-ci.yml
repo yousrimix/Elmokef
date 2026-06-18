@@ -1,0 +1,193 @@
+# =============================================================================
+# Flutter CI — Analyze + Build APK/AAB
+# =============================================================================
+# Triggers: push/PR on main when almawqef/ changes
+# Stack:    Flutter SDK with Riverpod, Dio, Firebase, HMS
+# =============================================================================
+
+name: Flutter CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'almawqef/**'
+      - '.github/workflows/flutter-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'almawqef/**'
+
+env:
+  FLUTTER_VERSION: '3.29'
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Job 1: Analyze
+  # --------------------------------------------------------------------------
+  analyze:
+    name: Dart Analyze
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./almawqef
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run Dart analyzer
+        run: flutter analyze
+
+      # Cache restore fails the job — still useful info
+      - name: Check for unused imports (optional)
+        run: dart fix --dry-run 2>&1 || true
+
+  # --------------------------------------------------------------------------
+  # Job 2: Tests
+  # --------------------------------------------------------------------------
+  test:
+    name: Flutter Tests
+    runs-on: ubuntu-latest
+    needs: analyze
+    defaults:
+      run:
+        working-directory: ./almawqef
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate code (Riverpod annotations)
+        run: dart run build_runner build --delete-conflicting-outputs 2>&1 || true
+
+      - name: Run Flutter unit tests
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flutter-coverage
+          path: ./almawqef/coverage/
+          retention-days: 7
+
+  # --------------------------------------------------------------------------
+  # Job 3: Build APK (Debug)
+  # --------------------------------------------------------------------------
+  build-apk:
+    name: Build APK (Debug)
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: ./almawqef
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate code (Riverpod annotations)
+        run: dart run build_runner build --delete-conflicting-outputs 2>&1 || true
+
+      - name: Build APK (debug)
+        run: flutter build apk --debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: almawqef-debug-apk
+          path: ./almawqef/build/app/outputs/flutter-apk/*.apk
+          retention-days: 7
+
+  # --------------------------------------------------------------------------
+  # Job 4: Build Release APK + AAB (only on main push)
+  # --------------------------------------------------------------------------
+  build-release:
+    name: Build Release APK & AAB
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    defaults:
+      run:
+        working-directory: ./almawqef
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Generate code (Riverpod annotations)
+        run: dart run build_runner build --delete-conflicting-outputs 2>&1 || true
+
+      - name: Build release APK
+        run: flutter build apk --release
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build release AAB
+        run: flutter build appbundle --release
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: almawqef-release-apk
+          path: ./almawqef/build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: almawqef-release-aab
+          path: ./almawqef/build/app/outputs/bundle/release/*.aab
+          retention-days: 30

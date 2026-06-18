@@ -1,0 +1,211 @@
+version: "3.9"
+
+# =============================================================================
+# Production Docker Compose — Elmokef API
+# =============================================================================
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+# =============================================================================
+
+secrets:
+  cmi_store_key:
+    file: ./secrets/cmi_store_key.txt
+  cmi_merchant_id:
+    file: ./secrets/cmi_merchant_id.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  jwt_refresh_secret:
+    file: ./secrets/jwt_refresh_secret.txt
+  db_password:
+    file: ./secrets/db_password.txt
+  documents_encryption_key:
+    file: ./secrets/documents_encryption_key.txt
+
+volumes:
+  pgdata_prod:
+  redis_data_prod:
+  clamav_db_prod:
+  uploads_prod:
+  admin_dist:
+  letsencrypt:
+
+services:
+  # =============================================================================
+  # PostgreSQL + PostGIS
+  # =============================================================================
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: elmokef-db-prod
+    restart: unless-stopped
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_DB: elmokef
+      POSTGRES_USER: elmokef_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elmokef_user -d elmokef"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  # =============================================================================
+  # Redis — Cache + Queue
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: elmokef-redis-prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    volumes:
+      - redis_data_prod:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  # =============================================================================
+  # ClamAV — Virus scanning for uploaded files
+  # =============================================================================
+  clamav:
+    image: clamav/clamav:latest
+    container_name: elmokef-clamav-prod
+    restart: unless-stopped
+    volumes:
+      - clamav_db_prod:/var/lib/clamav
+    ports:
+      - "127.0.0.1:3310:3310"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  # =============================================================================
+  # Backend API — NestJS (Modular Monolith)
+  # =============================================================================
+  backend:
+    image: ghcr.io/elmokef-ma/backend:${TAG:-latest}
+    container_name: elmokef-backend-prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    secrets:
+      - cmi_store_key
+      - cmi_merchant_id
+      - jwt_secret
+      - jwt_refresh_secret
+      - db_password
+      - documents_encryption_key
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+      # Database
+      DATABASE_URL: "postgresql://elmokef_user:${DB_PASSWORD}@postgres:5432/elmokef?schema=public"
+
+      # JWT
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      JWT_REFRESH_SECRET_FILE: /run/secrets/jwt_refresh_secret
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret}
+
+      # CMI Payment Gateway — Sandbox
+      CMI_SANDBOX: ${CMI_SANDBOX:-true}
+      CMI_BASE_URL: ${CMI_BASE_URL:-https://test.cmi.co.ma}
+      CMI_STORE_ID: ${CMI_STORE_ID:-elmokef_sandbox}
+      CMI_STORE_KEY_FILE: /run/secrets/cmi_store_key
+      CMI_MERCHANT_ID_FILE: /run/secrets/cmi_merchant_id
+      CMI_MERCHANT_EMAIL: ${CMI_MERCHANT_EMAIL:-merchant@elmokef.ma}
+      CMI_CURRENCY: "504"
+      CMI_LANG: ar
+      API_BASE_URL: ${API_BASE_URL:-https://api.elmokef.ma}
+
+      # Other
+      CLAMAV_ENABLED: "true"
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      DOCUMENTS_ENCRYPTION_KEY_FILE: /run/secrets/documents_encryption_key
+      CORS_ORIGIN: https://app.elmokef.ma
+    volumes:
+      - uploads_prod:/app/uploads
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # =============================================================================
+  # Nginx Reverse Proxy
+  # =============================================================================
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: elmokef-nginx-prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/api.elmokef.ma.conf:/etc/nginx/conf.d/api.elmokef.ma.conf:ro
+      - ./nginx/admin.elmokef.ma.conf:/etc/nginx/conf.d/admin.elmokef.ma.conf:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - uploads_prod:/var/www/elmokef/uploads:ro
+      - admin_dist:/var/www/admin.elmokef.ma:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
+  # =============================================================================
+  # Certbot — SSL Auto-Renewal
+  # =============================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: elmokef-certbot
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - ./nginx/ssl:/var/www/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
