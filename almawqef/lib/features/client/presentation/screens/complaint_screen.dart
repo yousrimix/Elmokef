@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
@@ -16,7 +16,7 @@ class ComplaintScreen extends StatefulWidget {
 class _ComplaintScreenState extends State<ComplaintScreen> {
   String _selectedSubject = 'خدمة غير مكتملة';
   final _descriptionController = TextEditingController();
-  File? _attachment;
+  XFile? _attachment;
   bool _submitted = false;
 
   final List<_SubjectOption> _subjects = [
@@ -36,8 +36,21 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
 
   void _pickAttachment() async {
     final picker = ImagePicker();
-    final xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
-    if (xFile != null) setState(() => _attachment = File(xFile.path));
+    final XFile? xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
+    if (xFile != null) {
+      if (mounted) {
+        setState(() {
+          _attachment = xFile;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم إرفاق الملف بنجاح'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   bool get _isValid =>
@@ -193,7 +206,7 @@ class _ComplaintScreenState extends State<ComplaintScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(13),
-                          child: Image.file(_attachment!, width: double.infinity, height: 140, fit: BoxFit.cover),
+                          child: Image.network(_attachment!.path, width: double.infinity, height: 140, fit: BoxFit.cover),
                         ),
                         Positioned(
                           top: 8, right: 8,

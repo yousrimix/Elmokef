@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/loading_widgets.dart';
 import '../../../../core/widgets/error_state.dart';
+import '../../../../core/widgets/verified_badge.dart';
 import '../../../home/presentation/providers/services_provider.dart';
 import '../../../home/data/models/category_model.dart';
 
@@ -19,6 +22,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   late TextEditingController _searchController;
   late String _query;
+  Timer? _debounce;
 
   static const _popularSearches = [
     'سباك', 'كهربائي', 'صباغ', 'نجار', 'حداد', 'مكنسي', 'تبريد وتكييف', 'تنظيف'
@@ -33,8 +37,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        setState(() => _query = value.trim());
+      }
+    });
   }
 
   @override
@@ -76,6 +90,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     )
                   : null,
             ),
+            onChanged: _onSearchChanged,
             onSubmitted: (value) {
               setState(() => _query = value.trim());
             },
@@ -238,23 +253,141 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildSearchResults() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.bgMuted,
-              shape: BoxShape.circle,
+    final resultsAsync = ref.watch(textSearchProvider(_query));
+
+    return resultsAsync.when(
+      data: (artisans) => artisans.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgMuted,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.search_off_rounded, size: 48, color: AppColors.textTertiary),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('نتائج بحث: "$_query"', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  const SizedBox(height: 8),
+                  const Text('لم نجد حرفيين لهذا البحث', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                  const SizedBox(height: 20),
+                  TextButton.icon(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    label: const Text('عودة للتصفح'),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: artisans.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text('نتائج بحث: "$_query" (${artisans.length})',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  );
+                }
+                final a = artisans[index - 1];
+                return _searchResultCard(a);
+              },
             ),
-            child: const Icon(Icons.search_rounded, size: 48, color: AppColors.textTertiary),
-          ),
-          const SizedBox(height: 20),
-          Text('نتائج بحث: "$_query"', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          const Text('ابحث عن خدمة للعثور على حرفيين', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
-        ],
+      loading: () => const Padding(
+        padding: EdgeInsets.all(20),
+        child: ShimmerList(itemCount: 3, itemHeight: 100),
+      ),
+      error: (err, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ErrorState(
+              message: 'تعذر البحث',
+              icon: Icons.cloud_off_rounded,
+              retryLabel: 'إعادة',
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => setState(() => _query = ''),
+              child: const Text('عودة للتصفح'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _searchResultCard(ArtisanModel a) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        onTap: () => context.go('/artisan/${a.id}', extra: a.name),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLighter,
+                ),
+                child: a.imageUrl != null && a.imageUrl!.isNotEmpty
+                    ? Image.network(a.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _searchAvatarFallback(a))
+                    : _searchAvatarFallback(a),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          a.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      if (a.verified) const VerifiedBadge(),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.star_rounded, size: 14, color: AppColors.accent),
+                      const SizedBox(width: 4),
+                      Text('${a.rating}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const SizedBox(width: 12),
+                      Icon(Icons.work_rounded, size: 14, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Text(a.profession, style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_left_rounded, color: AppColors.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _searchAvatarFallback(ArtisanModel a) {
+    return Center(
+      child: Text(
+        a.name[0],
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
       ),
     );
   }

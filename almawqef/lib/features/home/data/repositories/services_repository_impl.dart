@@ -116,6 +116,20 @@ class ServicesRepositoryImpl implements ServicesRepository {
   }
 
   @override
+  Future<Either<Failure, List<ArtisanModel>>> searchArtisansByText(String query, {int limit = 20}) async {
+    if (!await _networkInfo.isConnected) {
+      return const Left(NetworkFailure('لا يوجد اتصال بالإنترنت'));
+    }
+    try {
+      final artisans = await _remoteDataSource.searchArtisansByText(query, limit: limit);
+      return Right(artisans);
+    } on DioException catch (e) {
+      final msg = e.error is ServerException ? (e.error as ServerException).message : 'فشل البحث';
+      return Left(ServerFailure(msg));
+    }
+  }
+
+  @override
   Future<Either<Failure, Map<String, dynamic>>> searchServices({
     String? query,
     String? categoryId,

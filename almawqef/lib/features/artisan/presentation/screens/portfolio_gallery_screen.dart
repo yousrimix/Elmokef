@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
@@ -12,14 +11,14 @@ class PortfolioGalleryScreen extends StatefulWidget {
 }
 
 class _PortfolioGalleryScreenState extends State<PortfolioGalleryScreen> {
-  final List<File> _images = [];
+  final List<XFile> _images = [];
   final List<String> _descriptions = [];
 
   void _pickImage() async {
     final picker = ImagePicker();
     final xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1080, maxHeight: 1080, imageQuality: 85);
     if (xFile != null) {
-      setState(() => _images.add(File(xFile.path)));
+      setState(() => _images.add(xFile));
       _descriptions.add('');
     }
   }
@@ -60,8 +59,8 @@ class _PortfolioGalleryScreenState extends State<PortfolioGalleryScreen> {
               maxScale: 5,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.file(
-                  _images[index],
+                child: Image.network(
+                  _images[index].path,
                   width: double.infinity,
                   height: MediaQuery.of(context).size.height * 0.7,
                   fit: BoxFit.contain,
@@ -234,7 +233,7 @@ class _PortfolioGalleryScreenState extends State<PortfolioGalleryScreen> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.file(_images[i], fit: BoxFit.cover),
+                              Image.network(_images[i].path, fit: BoxFit.cover),
                               Positioned(
                                 top: 4, right: 4,
                                 child: GestureDetector(

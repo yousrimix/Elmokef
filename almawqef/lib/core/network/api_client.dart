@@ -1,4 +1,3 @@
-import 'dart:html' show window;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -43,17 +42,18 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    try {
-      String? token;
-      if (kIsWeb) {
-        token = window.localStorage[_accessTokenKey];
-      } else if (_secureStorage != null) {
-        token = await _secureStorage.read(key: _accessTokenKey);
-      }
-      if (token != null && token.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-    } catch (_) {}
+    String? token;
+    if (kIsWeb) {
+      // Web: use flutter_secure_storage wrapped in try-catch
+      try {
+        token = await _secureStorage?.read(key: _accessTokenKey);
+      } catch (_) {}
+    } else if (_secureStorage != null) {
+      token = await _secureStorage.read(key: _accessTokenKey);
+    }
+    if (token != null && token.isNotEmpty) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
     handler.next(options);
   }
 }

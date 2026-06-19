@@ -1,9 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/constants/api_constants.dart';
+import '../../../../core/di/providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
-class ReviewScreen extends StatefulWidget {
+class ReviewScreen extends ConsumerStatefulWidget {
   final String artisanId;
   final String artisanName;
 
@@ -14,13 +17,15 @@ class ReviewScreen extends StatefulWidget {
   });
 
   @override
-  State<ReviewScreen> createState() => _ReviewScreenState();
+  ConsumerState<ReviewScreen> createState() => _ReviewScreenState();
 }
 
-class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderStateMixin {
+class _ReviewScreenState extends ConsumerState<ReviewScreen> with SingleTickerProviderStateMixin {
   int _rating = 0;
   final _commentController = TextEditingController();
   bool _submitted = false;
+  bool _isLoading = false;
+  String? _errorMessage;
   late AnimationController _animController;
   late Animation<double> _scaleAnim;
 
@@ -42,6 +47,39 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     _commentController.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitReview() async {
+    if (_rating == 0) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final apiClient = ref.read(apiClientProvider);
+      await apiClient.post(
+        ApiConstants.reviews,
+        data: {
+          'artisan_id': widget.artisanId,
+          'rating': _rating,
+          'comment': _commentController.text.trim(),
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _submitted = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'حدث خطأ أثناء إرسال التقييم. حاول مرة أخرى.';
+      });
+    }
   }
 
   @override
@@ -93,10 +131,12 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
               children: List.generate(5, (index) {
                 final filled = index < _rating;
                 return GestureDetector(
-                  onTap: () {
-                    setState(() => _rating = index + 1);
-                    _animController.forward(from: 0);
-                  },
+                  onTap: _isLoading
+                      ? null
+                      : () {
+                          setState(() => _rating = index + 1);
+                          _animController.forward(from: 0);
+                        },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: AnimatedScale(
@@ -150,6 +190,7 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
                 controller: _commentController,
                 maxLines: 3,
                 textDirection: TextDirection.rtl,
+                enabled: !_isLoading,
                 decoration: InputDecoration(
                   hintText: 'شارك تجربتك مع هذا الحرفي...',
                   hintStyle: const TextStyle(fontSize: 14, color: AppColors.textTertiary),
@@ -159,16 +200,52 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+
+            // Error message
+            if (_errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.errorBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 18, color: AppColors.danger),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_errorMessage!,
+                          style: const TextStyle(fontSize: 13, color: AppColors.danger)),
+                    ),
+                  ],
+                ),
+              ),
+
+            SizedBox(height: _errorMessage != null ? 8 : 16),
 
             // Submit
             SizedBox(
               width: double.infinity, height: 52,
               child: ElevatedButton.icon(
-                onPressed: _rating > 0 ? () => setState(() => _submitted = true) : null,
-                icon: const Icon(Icons.send_rounded, size: 18),
-                label: Text(_rating > 0 ? 'إرسال التقييم' : 'اختر تقييماً أولاً',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                onPressed: _rating > 0 && !_isLoading ? _submitReview : null,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded, size: 18),
+                label: Text(
+                  _isLoading
+                      ? 'جاري الإرسال...'
+                      : _rating > 0
+                          ? 'إرسال التقييم'
+                          : 'اختر تقييماً أولاً',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,

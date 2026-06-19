@@ -41,9 +41,10 @@ class ServicesRemoteDataSource {
     return response.data as Map<String, dynamic>;
   }
 
-  /// GET /artisans?service_id=...&cursor=...&limit=...
+  /// GET /artisans?service_id=...&search=...&cursor=...&limit=...
   Future<Map<String, dynamic>> searchArtisans({
     required String serviceId,
+    String? search,
     double? lat,
     double? lng,
     String? cursor,
@@ -53,6 +54,7 @@ class ServicesRemoteDataSource {
       'service_id': serviceId,
       'limit': limit,
     };
+    if (search != null && search.isNotEmpty) params['search'] = search;
     if (lat != null) params['lat'] = lat;
     if (lng != null) params['lng'] = lng;
     if (cursor != null) params['cursor'] = cursor;
@@ -84,6 +86,22 @@ class ServicesRemoteDataSource {
   Future<ArtisanModel> getArtisanProfile(String id) async {
     final response = await _apiClient.get(ApiConstants.artisanProfile(id));
     return ArtisanModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// GET /artisans?search=... — search artisans by text query
+  Future<List<ArtisanModel>> searchArtisansByText(String query, {int limit = 20}) async {
+    final response = await _apiClient.get(
+      ApiConstants.artisans,
+      queryParameters: {'search': query, 'limit': limit},
+    );
+    final data = response.data;
+    if (data is List) {
+      return data.map((e) => ArtisanModel.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    if (data is Map<String, dynamic> && data['data'] is List) {
+      return (data['data'] as List).map((e) => ArtisanModel.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return [];
   }
 
   /// GET /artisans/:id/reviews

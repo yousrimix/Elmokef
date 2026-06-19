@@ -1,6 +1,18 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
-const prisma = new PrismaClient();
+const pool = new pg.Pool({
+  host: 'aws-0-eu-west-1.pooler.supabase.com',
+  port: 5432,
+  user: 'postgres.dvkefmbmftvigrnympuq',
+  password: 'j6AN8?T_c!e,XdH',
+  database: 'postgres',
+  max: 10,
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 const categories = [
   { nameAr: 'سباكة', nameFr: 'Plomberie', icon: 'plumber', orderIndex: 1 },

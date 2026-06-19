@@ -81,3 +81,13 @@ final searchServicesProvider = FutureProvider.family<Map<String, dynamic>, Strin
     (data) => data,
   );
 });
+
+// ── Search artisans by text ───────────────────────────────────────
+final textSearchProvider = FutureProvider.family<List<ArtisanModel>, String>((ref, query) async {
+  if (query.trim().isEmpty) return [];
+  final result = await ref.watch(servicesRepositoryProvider).searchArtisansByText(query.trim());
+  return result.fold(
+    (failure) => throw failure,
+    (artisans) => artisans,
+  );
+});

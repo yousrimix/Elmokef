@@ -1,4 +1,3 @@
-import 'dart:html' show window;
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -17,28 +16,17 @@ class AuthRepositoryImpl implements AuthRepository {
   final NetworkInfo _networkInfo;
   final FlutterSecureStorage? _secureStorage;
 
-  // Web localStorage fallback
+  // Token storage using flutter_secure_storage with try-catch for web
   Future<String?> _readToken(String key) async {
-    if (kIsWeb) {
-      try { return window.localStorage[key]; } catch (_) { return null; }
-    }
     try { return await _secureStorage?.read(key: key); } catch (_) { return null; }
   }
 
   Future<void> _writeToken(String key, String value) async {
-    if (kIsWeb) {
-      try { window.localStorage[key] = value; } catch (_) { return; }
-    } else {
-      try { await _secureStorage?.write(key: key, value: value); } catch (_) {}
-    }
+    try { await _secureStorage?.write(key: key, value: value); } catch (_) {}
   }
 
   Future<void> _deleteToken(String key) async {
-    if (kIsWeb) {
-      try { window.localStorage.remove(key); } catch (_) { return; }
-    } else {
-      try { await _secureStorage?.delete(key: key); } catch (_) {}
-    }
+    try { await _secureStorage?.delete(key: key); } catch (_) {}
   }
 
   AuthRepositoryImpl({

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,7 +47,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     _paymentId = DateTime.now().millisecondsSinceEpoch;
     _cmiUrl = 'https://pay.cmi.co.ma/pay?merchant=elmokef&amount=${_getAmount()}&currency=MAD&plan=${_getPlanName()}';
 
-    if (Platform.isIOS) {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
       _useFallback = true;
       _openInSafari();
     } else {

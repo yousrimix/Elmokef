@@ -25,6 +25,8 @@ abstract class ServicesRepository {
 
   Future<Either<Failure, List<PortfolioModel>>> getArtisanPortfolio(String artisanId);
 
+  Future<Either<Failure, List<ArtisanModel>>> searchArtisansByText(String query, {int limit = 20});
+
   Future<Either<Failure, Map<String, dynamic>>> searchServices({
     String? query,
     String? categoryId,

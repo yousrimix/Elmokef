@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/rating_bar.dart';
+import '../../../../core/di/providers.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   final String serviceId;
@@ -21,58 +22,65 @@ class MapScreen extends ConsumerStatefulWidget {
 class _MapScreenState extends ConsumerState<MapScreen> {
   final MapController _mapController = MapController();
   LatLng? _currentPosition;
-  bool _locationLoading = true;
+  bool _isLoading = true;
+  String? _error;
   int? _selectedArtisanId;
 
-  final List<_ArtisanMarker> _mockArtisans = [
-    _ArtisanMarker(1, 'أحمد العلوي', 33.5731, -7.5898, 4.8, 'سباك', '150-300', null),
-    _ArtisanMarker(2, 'محمد الصقلي', 33.5780, -7.5950, 4.5, 'كهربائي', '120-250', null),
-    _ArtisanMarker(3, 'فاطمة بنعلي', 33.5700, -7.5850, 4.9, 'صبّاغة', '200-400', null),
-    _ArtisanMarker(4, 'خالد العمري', 33.5760, -7.6000, 4.3, 'نجّار', '300-600', null),
-    _ArtisanMarker(5, 'سعيد المنصوري', 33.5690, -7.5920, 4.7, 'حدّاد', '150-350', null),
-  ];
+  List<_ArtisanMarker> _artisans = [];
 
   static const LatLng _defaultCenter = LatLng(33.5731, -7.5898); // Casa
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    _init();
+  }
+
+  Future<void> _init() async {
+    // Fetch artisans from API
+    await _fetchArtisans();
+    // Then try location
+    await _getCurrentLocation();
+  }
+
+  Future<void> _fetchArtisans() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.get('/api/v1/artisans');
+      final data = response.data as Map<String, dynamic>;
+      final list = (data['data'] ?? data['artisans'] ?? []) as List;
+
+      final markers = <_ArtisanMarker>[];
+      var index = 0;
+      for (final item in list) {
+        final user = item['user'] as Map<String, dynamic>? ?? {};
+        final lat = (item['latitude'] as num?)?.toDouble();
+        final lng = (item['longitude'] as num?)?.toDouble();
+        if (lat != null && lng != null) {
+          markers.add(_ArtisanMarker(
+            index++,
+            user['name'] as String? ?? 'حرفي',
+            lat,
+            lng,
+            (item['ratingAvg'] as num?)?.toDouble() ?? 4.5,
+            (item['services'] as List?)?.firstOrNull?['name'] as String? ?? 'خدمات',
+            user['image'] as String?,
+            item['id'] as String? ?? '',
+          ));
+        }
+      }
+      setState(() => _artisans = markers);
+    } catch (e) {
+      setState(() => _error = 'فشل تحميل البيانات');
+    }
   }
 
   Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() => _locationLoading = false);
-      return;
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() => _locationLoading = false);
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      setState(() => _locationLoading = false);
-      return;
-    }
-
     try {
       final pos = await Geolocator.getCurrentPosition();
-      setState(() {
-        _currentPosition = LatLng(pos.latitude, pos.longitude);
-        _locationLoading = false;
-      });
-    } catch (_) {
-      setState(() => _locationLoading = false);
-    }
+      setState(() => _currentPosition = LatLng(pos.latitude, pos.longitude));
+    } catch (_) {}
+    setState(() => _isLoading = false);
   }
 
   @override
@@ -115,7 +123,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               // Artisan markers
               MarkerLayer(
-                markers: _mockArtisans.map((a) => Marker(
+                markers: _artisans.map((a) => Marker(
                   point: LatLng(a.lat, a.lng),
                   width: 80, height: 80,
                   child: GestureDetector(
@@ -184,7 +192,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       color: AppColors.primarySurface,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text('${_mockArtisans.length} حرفي', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                    child: Text('${_artisans.length} حرفي', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
                   ),
                   const SizedBox(width: 12),
                 ],
@@ -193,11 +201,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
 
           // Loading indicator
-          if (_locationLoading)
+          if (_isLoading)
             Positioned.fill(
               child: Container(
                 color: Colors.black12,
                 child: const Center(child: CircularProgressIndicator()),
+              ),
+            ),
+          if (_error != null)
+            Positioned(
+              bottom: 100, left: 20, right: 20,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12)],
+                ),
+                child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 14)),
               ),
             ),
 
@@ -210,7 +231,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildBottomCard() {
-    final a = _mockArtisans.firstWhere((a) => a.id == _selectedArtisanId);
+    final a = _artisans.firstWhere((a) => a.id == _selectedArtisanId);
     return Positioned(
       bottom: 0,
       left: 0,
@@ -252,7 +273,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         children: [
                           Text(a.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                           const SizedBox(width: 6),
-                          if (a.id == 1)
+                          if (a.rating >= 4.8)
                             Container(
                               width: 18, height: 18,
                               decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
@@ -291,13 +312,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     color: AppColors.primaryLighter,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(a.price, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                  child: Text('${a.rating.toInt()}+', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
                 ),
                 const Spacer(),
                 SizedBox(
                   width: 140, height: 40,
                   child: ElevatedButton.icon(
-                    onPressed: () => context.go('/artisan/art-uuid-00${a.id}'),
+                    onPressed: () => context.go('/artisan/${a.artisanId}'),
                     icon: const Icon(Icons.person_rounded, size: 16),
                     label: const Text('عرض الملف', style: TextStyle(fontSize: 13)),
                     style: ElevatedButton.styleFrom(
@@ -323,7 +344,7 @@ class _ArtisanMarker {
   final double lat, lng;
   final double rating;
   final String profession;
-  final String price;
+  final String artisanId;
   final String? image;
-  const _ArtisanMarker(this.id, this.name, this.lat, this.lng, this.rating, this.profession, this.price, this.image);
+  const _ArtisanMarker(this.id, this.name, this.lat, this.lng, this.rating, this.profession, this.image, this.artisanId);
 }

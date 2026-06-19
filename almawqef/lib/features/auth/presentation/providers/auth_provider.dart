@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/di/providers.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
@@ -67,6 +68,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final profileResult = await _repository.getProfile();
       profileResult.fold(
         (_) {
+          unawaited(_repository.clearTokens());
           state = state.copyWith(status: AuthStatus.unauthenticated);
         },
         (user) {

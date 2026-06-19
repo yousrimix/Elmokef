@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -47,7 +47,9 @@ class ElmokefApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return MaterialApp.router(
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: MaterialApp.router(
       title: 'الميقف',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
@@ -70,6 +72,7 @@ class ElmokefApp extends ConsumerWidget {
         }
         return const Locale('ar');
       },
+    ),
     );
   }
 }

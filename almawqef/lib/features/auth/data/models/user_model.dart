@@ -19,7 +19,7 @@ class UserModel extends UserEntity {
       email: json['email'] as String?,
       role: json['role'] as String,
       image: json['image'] as String?,
-      isVerified: json['is_verified'] as bool? ?? false,
+      isVerified: json['isVerified'] as bool? ?? json['is_verified'] as bool? ?? false,
     );
   }
 
@@ -30,7 +30,7 @@ class UserModel extends UserEntity {
         'email': email,
         'role': role,
         'image': image,
-        'is_verified': isVerified,
+        'isVerified': isVerified,
       };
 
   factory UserModel.fromEntity(UserEntity entity) {

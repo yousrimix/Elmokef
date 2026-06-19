@@ -39,10 +39,10 @@ class AppCard extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: borderRadius ?? BorderRadius.circular(16),
+        borderRadius: (borderRadius ?? BorderRadius.circular(16)) as BorderRadius,
         child: InkWell(
           onTap: onTap,
-          borderRadius: borderRadius ?? BorderRadius.circular(16),
+          borderRadius: (borderRadius ?? BorderRadius.circular(16)) as BorderRadius,
           splashColor: AppColors.overlay,
           highlightColor: AppColors.overlay,
           child: Padding(

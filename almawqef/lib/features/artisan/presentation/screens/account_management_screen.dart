@@ -14,6 +14,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   final _phoneController = TextEditingController(text: '+212 6XX-XXXXXX');
   final _cityController = TextEditingController(text: 'فاس');
   bool _isAvailable = true;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void dispose() {
@@ -28,12 +29,13 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   }
 
   void _onSave() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('تم حفظ التعديلات بنجاح ✓'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: const Color(0xFF059669),
+        backgroundColor: AppColors.primary,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -253,12 +255,32 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   // ── Logout ──
                   Center(
                     child: TextButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.logout_rounded, color: Color(0xFFDC2626), size: 20),
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: const Text('تسجيل الخروج'),
+                          content: const Text('هل أنت متأكد من تسجيل الخروج؟'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('إلغاء', style: TextStyle(color: AppColors.textSecondary)),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                context.go('/login');
+                              },
+                              child: const Text('تسجيل الخروج', style: TextStyle(color: AppColors.danger)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, color: AppColors.danger, size: 20),
                       label: const Text(
                         'تسجيل الخروج',
                         style: TextStyle(
-                          color: Color(0xFFDC2626),
+                          color: AppColors.danger,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
                         ),
@@ -276,7 +298,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.bgCard,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
@@ -291,7 +313,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           child: ElevatedButton(
             onPressed: _onSave,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -321,7 +343,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF1F2937),
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -350,31 +372,31 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         keyboardType: keyboardType,
         style: const TextStyle(
           fontSize: 15,
-          color: Color(0xFF1F2937),
+          color: AppColors.textPrimary,
           fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-            color: Color(0xFF9CA3AF),
+            color: AppColors.textTertiary,
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
-          prefixIcon: Icon(icon, color: const Color(0xFF059669), size: 22),
+          prefixIcon: Icon(icon, color: AppColors.primary, size: 22),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey.shade200),
+            borderSide: BorderSide(color: AppColors.border),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
           ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: AppColors.bgCard,
           contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
       ),
@@ -385,7 +407,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -402,13 +424,13 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             height: 44,
             decoration: BoxDecoration(
               color: _isAvailable
-                  ? const Color(0xFF059669).withValues(alpha: 0.1)
-                  : Colors.grey.shade100,
+                  ? AppColors.primary.withValues(alpha: 0.1)
+                  : AppColors.bgMuted,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               _isAvailable ? Icons.check_circle_rounded : Icons.do_not_disturb_alt_rounded,
-              color: _isAvailable ? const Color(0xFF059669) : Colors.grey.shade400,
+              color: _isAvailable ? AppColors.primary : AppColors.textTertiary,
               size: 24,
             ),
           ),
@@ -422,14 +444,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 Text(
                   _isAvailable ? 'يمكن للعملاء التواصل معك' : 'لن يظهر حسابك للعملاء الجدد',
                   style: TextStyle(
                     fontSize: 12,
-                    color: _isAvailable ? const Color(0xFF059669) : Colors.grey.shade500,
+                    color: _isAvailable ? AppColors.primary : AppColors.textTertiary,
                   ),
                 ),
               ],
@@ -437,8 +459,8 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           ),
           Switch(
             value: _isAvailable,
-            activeColor: const Color(0xFF059669),
-            activeTrackColor: const Color(0xFF059669).withValues(alpha: 0.3),
+            activeColor: AppColors.primary,
+            activeTrackColor: AppColors.primary.withValues(alpha: 0.3),
             onChanged: (val) => setState(() => _isAvailable = val),
           ),
         ],
@@ -449,7 +471,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   Widget _buildMenuCard(List<_MenuItemData> items) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -486,10 +508,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: const Color(0xFF059669).withValues(alpha: 0.08),
+                color: AppColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(item.icon, color: const Color(0xFF059669), size: 22),
+              child: Icon(item.icon, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -501,7 +523,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F2937),
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -509,13 +531,13 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     item.subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: AppColors.textTertiary,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_left_rounded, color: Colors.grey.shade400, size: 22),
+            Icon(Icons.chevron_left_rounded, color: AppColors.textTertiary, size: 22),
           ],
         ),
       ),
@@ -527,12 +549,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF9),
+        color: AppColors.primarySurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.15)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF059669).withValues(alpha: 0.06),
+            color: AppColors.primary.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 3),
           ),
@@ -546,9 +568,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF059669), Color(0xFF0D9488)],
-                  ),
+                  gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Row(
@@ -572,16 +592,16 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(Icons.inbox_rounded, size: 16, color: Color(0xFF059669)),
+              const Icon(Icons.inbox_rounded, size: 16, color: AppColors.primary),
               const SizedBox(width: 6),
               const Text(
                 'متبقي: 8 من 10 طلبات',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1F2937)),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
               ),
               const Spacer(),
               Text(
                 '75%',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
               ),
             ],
           ),
@@ -590,8 +610,8 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: 0.2,
-              backgroundColor: const Color(0xFF059669).withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF059669)),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
               minHeight: 6,
             ),
           ),
@@ -602,7 +622,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             child: ElevatedButton(
               onPressed: () => _navigate(context, '/subscriptions'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(

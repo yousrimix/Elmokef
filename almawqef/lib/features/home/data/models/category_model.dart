@@ -32,7 +32,7 @@ class CategoryModel extends Equatable {
               ?.map((e) => CategoryModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      artisanCount: json['artisan_count'] as int? ?? json['_count']?['artisanServices'] as int? ?? 0,
+      artisanCount: json['artisan_count'] as int? ?? json['_count']?['artisanServices'] as int? ?? json['artisanCount'] as int? ?? 0,
       icon: json['icon'] as String?,
     );
   }
@@ -146,7 +146,7 @@ class ArtisanModel extends Equatable {
       imageUrl: user?['image'] as String? ?? flatImage,
       latitude: (json['lat'] as num?)?.toDouble() ?? 0,
       longitude: (json['lng'] as num?)?.toDouble() ?? 0,
-      rankScore: (json['rank_score'] as num?)?.toDouble() ?? (json['rankScore'] as num?)?.toDouble() ?? 0,
+      rankScore: (json['rankingScore'] as num?)?.toDouble() ?? (json['rank_score'] as num?)?.toDouble() ?? (json['rankScore'] as num?)?.toDouble() ?? 0,
       bio: json['bio'] as String?,
       coverImage: json['cover_image'] as String? ?? json['coverImage'] as String?,
       services: (servicesRaw ?? []).map((e) => ArtisanServiceModel.fromJson(e as Map<String, dynamic>)).toList(),

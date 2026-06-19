@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
@@ -18,8 +18,8 @@ class _WizardScreenState extends State<WizardScreen> {
   final _bioController = TextEditingController(text: 'حرفي محترف عندي 12 سنة خبرة في المجال.');
 
   String _selectedCity = 'فاس';
-  File? _profileImage;
-  File? _idImage;
+  XFile? _profileImage;
+  XFile? _idImage;
   bool _acceptedTerms = false;
 
   final List<String> _cities = [
@@ -254,7 +254,7 @@ class _WizardScreenState extends State<WizardScreen> {
             child: _profileImage != null
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    child: Image.file(_profileImage!, fit: BoxFit.cover, width: double.infinity),
+                    child: Image.network(_profileImage!.path, fit: BoxFit.cover, width: double.infinity),
                   )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -289,7 +289,7 @@ class _WizardScreenState extends State<WizardScreen> {
             child: _idImage != null
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    child: Image.file(_idImage!, fit: BoxFit.cover, width: double.infinity),
+                    child: Image.network(_idImage!.path, fit: BoxFit.cover, width: double.infinity),
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -353,7 +353,7 @@ class _WizardScreenState extends State<WizardScreen> {
                 child: _profileImage != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(21),
-                        child: Image.file(_profileImage!, fit: BoxFit.cover),
+                        child: Image.network(_profileImage!.path, fit: BoxFit.cover),
                       )
                     : const Icon(Icons.person_rounded, size: 38, color: Colors.white),
               ),
@@ -450,11 +450,11 @@ class _WizardScreenState extends State<WizardScreen> {
 
   void _pickImage(String type) async {
     final picker = ImagePicker();
-    final xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
+    final XFile? xFile = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, maxHeight: 1024);
     if (xFile != null) {
       setState(() {
-        if (type == 'profile') _profileImage = File(xFile.path);
-        else _idImage = File(xFile.path);
+        if (type == 'profile') _profileImage = xFile;
+        else _idImage = xFile;
       });
     }
   }

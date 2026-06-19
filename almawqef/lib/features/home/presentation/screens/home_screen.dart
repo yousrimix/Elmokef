@@ -55,10 +55,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(categoriesProvider);
+            ref.invalidate(suggestedArtisansProvider);
+            await Future.wait([
+              ref.read(categoriesProvider.future),
+              ref.read(suggestedArtisansProvider.future),
+            ]);
+          },
+          child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-            // ─── Modern App Bar ─────────────────────────────────
+            // ─── Modern App Bar ─────────────────────────────────────────────
             SliverAppBar(
               expandedHeight: 160,
               collapsedHeight: 64,
@@ -133,7 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // ─── Content ────────────────────────────────────────
+            // ─── Content ─────────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -224,9 +233,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
+      ),
       bottomNavigationBar: AppBottomNav(
         currentIndex: currentIndex,
-        onTap: (i) => ref.read(homeIndexProvider.notifier).state = i,
+        onTap: (i) {
+            if (i == currentIndex) return;
+            ref.read(homeIndexProvider.notifier).state = i;
+            switch (i) {
+              case 1: context.go('/search');
+              case 2: context.go('/favorites');
+              case 3: context.go('/account');
+            }
+          },
         items: const [
           BottomNavItem(icon: Icons.home_rounded, label: 'الرئيسية'),
           BottomNavItem(icon: Icons.search_rounded, label: 'بحث'),
@@ -237,7 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ─── Widgets ─────────────────────────────────────────────────
+  // ─── Widgets ─────────────────────────────────────────────────────────────
 
   Widget _iconBadge(IconData icon, int? count, VoidCallback onTap) {
     return InkWell(
@@ -308,7 +326,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         textDirection: TextDirection.rtl,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: 'مين تبحث عنه اليوم؟ 🔍',
+          hintText: 'من تبحث عنه اليوم؟ 🔍',
           hintStyle: const TextStyle(fontSize: 14, color: AppColors.textTertiary),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 18),
